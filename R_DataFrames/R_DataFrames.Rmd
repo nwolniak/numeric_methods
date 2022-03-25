@@ -1,0 +1,123 @@
+---
+title: "Mownit lab5"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Zad 1
+```{r load, echo=TRUE, message=FALSE, warning=FALSE}
+options(scipen = 999) # scientific notation off
+require(tidyverse)
+# C times "Size" , "better" , "blas"
+results <- read_csv("c_times.csv")[c(1,3,4)]
+results[c(2,3)] <- results[c(2,3)] / 1000.0 # [ms] to [s]
+results
+```
+## Zad 2
+```{r}
+avg_dplyr <- results %>% 
+  group_by(Size) %>%
+  summarise(
+    better_mean = mean(Better),
+    better_sd = sd(Better),
+    blas_mean = mean(Blas),
+    blas_sd = sd(Blas)
+  )  %>% 
+  ungroup() %>%
+  arrange(Size)
+
+
+mean_plot <- ggplot(avg_dplyr, aes(x=Size)) + 
+  geom_point(aes(y=better_mean ,col="Better")) + 
+  geom_point(aes(y=blas_mean, col="Blas")) + 
+  ylab("Time [s]")+
+  ggtitle("Time mean")+
+  labs(color = "Type")
+
+mean_plot
+```
+
+## Zad 3
+```{r}
+mean_sd_plot <- mean_plot +
+  geom_errorbar(aes(ymin = better_mean-better_sd, ymax = better_mean+better_sd, width=.25))+
+  geom_errorbar(aes(ymin = blas_mean-blas_sd, ymax = blas_mean+blas_sd, width=.25))
+  
+mean_sd_plot
+```
+
+## Zad 4
+```{r}
+# Fit poly
+better_fit <- lm(better_mean ~ poly(Size, 3, raw=TRUE), data=avg_dplyr)
+blas_fit <- lm(blas_mean ~ poly(Size, 3, raw=TRUE), data=avg_dplyr)
+
+better_approx = data.frame(Size = seq(100, 1000, 0.01))
+better_approx$better_mean = predict(better_fit, better_approx)
+
+blas_approx = data.frame(Size = seq(100, 1000, 0.01))
+blas_approx$blas_mean = predict(blas_fit, blas_approx)
+
+#Plot
+times_poly_fitted <- mean_sd_plot+
+  geom_line(data=better_approx, aes(Size,better_mean), color="red")+
+  geom_line(data=blas_approx, aes(Size,blas_mean), color="blue")
+
+times_poly_fitted
+```
+
+## Zad 5
+```{r message=FALSE, warning=FALSE}
+coronavirus_data <- read_csv("coronavirus.csv")
+coronavirus_data <- filter(coronavirus_data,location=="Poland")
+coronavirus_data <- select(coronavirus_data, date, total_cases)
+
+coronavirus_data
+```
+First range
+```{r message=FALSE, warning=FALSE}
+require(lubridate)
+first_range <- filter(coronavirus_data,
+                      date >= ymd("2020-08-01"),
+                      date < ymd("2020-11-01"))
+first_range
+```
+Second range
+```{r}
+second_range <- filter(coronavirus_data,
+                      date >= ymd("2021-01-01"),
+                      date < ymd("2021-04-01"))
+second_range
+```
+Fitting
+```{r Fitting, fig.height=5, fig.width=14, message=FALSE, warning=FALSE}
+first_fit <- lm(log(total_cases) ~ date, data=first_range)
+second_fit <- lm(log(total_cases) ~ date, data=second_range)
+
+
+first_approx = data.frame(date=seq(min(first_range$date),max(first_range$date),"day"))
+first_approx$total_cases <- exp(predict(first_fit, first_approx))
+
+second_approx = data.frame(date=seq(min(second_range$date),max(second_range$date),"day"))
+second_approx$total_cases <- exp(predict(second_fit, second_approx))
+
+# First plot
+p1 <- ggplot(first_range, aes(date,total_cases, color=total_cases))+
+  geom_point()+
+  geom_line(data=first_approx, aes(date,total_cases), color="red")+
+  ggtitle("Zakażeni 2020-08-01 : 2020-11-01")
+
+# Second plot
+p2 <- ggplot(second_range, aes(date,total_cases, color=total_cases))+
+  geom_point()+
+  geom_line(data=second_approx, aes(date,total_cases), color="red")+
+  ggtitle("Zakażeni 2021-01-01 : 2021-04-01")
+
+require(gridExtra)
+grid.arrange(p1, p2, ncol=2)
+```
